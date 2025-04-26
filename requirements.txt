@@ -1,0 +1,9 @@
+streamlit
+SQLAlchemy
+bcrypt
+numpy
+matplotlib
+pandas
+plotly
+io
+zipfile
