@@ -20,7 +20,6 @@ def main():
                     st.session_state["user_id"] = user.id
                     st.session_state["username"] = user.name
                     st.session_state["logged_in"] = True
-                    st.experimental_rerun()
                 else:
                     st.error("Invalid email or password")
             else:
