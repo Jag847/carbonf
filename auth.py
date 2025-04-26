@@ -74,7 +74,6 @@ def login():
                     st.session_state.username = user.name
                     st.session_state.logged_in = True
                     st.success(f"Welcome back, {user.name}!")
-                    st.experimental_rerun()
                 else:
                     st.error("Invalid email or password")
             else:
