@@ -1,25 +1,45 @@
-# auth.py
 import streamlit as st
-import streamlit_authenticator as stauth
-import yaml
+from database import create_user, authenticate
 
-# In requirements.txt: streamlit-authenticator,PyYAML
+def main():
+    st.set_page_config(page_title="Login / Signup", layout="centered")
+    st.title("Login or Sign Up")
 
-def load_auth():
-    # This could be dynamically loaded from your DB instead of YAML.
-    config = {
-      'credentials': {
-        'usernames': {
-          'alice': {'email':'alice@example.com','name':'Alice','password':'hashed_pw'},
-          # ...
-        }
-      },
-      'cookie': {'expiry_days': 30, 'key': 'some_signature_key'},
-      'preauthorized': {'emails': []}
-    }
-    return stauth.Authenticate(
-      credentials=config['credentials'],
-      cookie_name=config['cookie']['key'],
-      key='some_signature_key',
-      cookie_expiry_days=config['cookie']['expiry_days']
-    )
+    # Tabs for Login and Signup
+    tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
+
+    with tab_login:
+        st.subheader("Login")
+        email = st.text_input("Gmail", key="login_email")
+        password = st.text_input("Password", type="password", key="login_password")
+        if st.button("Login"):
+            if email and password:
+                user = authenticate(email, password)
+                if user:
+                    st.success(f"Welcome {user.name}! You have logged in successfully.")
+                    st.session_state["user_id"] = user.id
+                    st.session_state["username"] = user.name
+                    st.session_state["logged_in"] = True
+                    st.experimental_rerun()
+                else:
+                    st.error("Invalid email or password")
+            else:
+                st.error("Please enter both email and password")
+
+    with tab_signup:
+        st.subheader("Sign Up")
+        new_name = st.text_input("Name", key="signup_name")
+        new_email = st.text_input("Gmail", key="signup_email")
+        new_password = st.text_input("Password", type="password", key="signup_password")
+        if st.button("Sign Up"):
+            if new_name and new_email and new_password:
+                user = create_user(new_name, new_email, new_password)
+                if user:
+                    st.success("Account created successfully! Please go to Login.")
+                else:
+                    st.error("Error: User with this email or name already exists.")
+            else:
+                st.error("Please fill all fields")
+                
+if __name__ == "__main__":
+    main()
