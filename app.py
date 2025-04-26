@@ -1,21 +1,23 @@
 # app.py
 import streamlit as st
-from auth import load_auth
+from auth import login
 from database import init_db, Session, User, Emission
 import carbon_logic as cl
 from datetime import date
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import plotly.express as px
+import plotly.io as pio
+import io, zipfile
 # 1. Initialize DB
 init_db()
 
 # 2. Authentication
-authenticator = load_auth()
-name, authentication_status, username = authenticator.login("Login", "main")
-if not authentication_status:
+if not st.session_state.get("logged_in", False):
+    login()
     st.stop()
+
 
 # 3. Greeting & "Let’s get started" button
 st.write(f"👋 Welcome {name}, let’s get started with your Carbon Foot Calculator.")
@@ -31,7 +33,8 @@ menu = st.sidebar.radio("Navigate", [
     "Carbon Metre",
     "Emission Analysis",
     "Year & Month Analysis",
-    "Download"
+    "Download",
+    "Offset Contribution"
 ])
 
 # 5. Get DB session & current user
@@ -50,6 +53,12 @@ f_e_f = {
     "Commercial Refrigeration": 3922,
     "Industrial Refrigeration": 2088,
     "Residential and Commercial A/C": 1650
+}
+of_e_f = {
+    "tree": 1.75,
+    "soil": 0.0515,
+    "grass": 0.0309,
+    "water": 0.0412
 }
 e_e_f = {
     "Coal/Thermal": 0.92,
@@ -70,6 +79,17 @@ SAFE_LIMITS = {
     "Waste": 1500,
     "Travel": 3500
 }
+FACILITIES = {
+    "Residential Areas",
+    "Hostels",
+    "Academic Area",
+    "Health Centre",
+    "Schools",
+    "Visitor's Hostel",
+    "Servants Quarters",
+    "Shops/Bank/PO"
+}
+
 
 def log_emission(category, facility, year, month, value):
     entry = Emission(
@@ -131,11 +151,9 @@ if menu == "Carbon Data":
     # Header for Carbon Data
     st.header("Enter Carbon Data")
     # Common inputs
-    facility = st.selectbox("Facility", ["Choose Facility", "Residential Areas", "Hostels", "Academic Area",
-                                         "Health Centre", "Schools", "Visitor's Hostel",
-                                         "Servants Quarters", "Shops/Bank/PO"])
+    facility = st.selectbox("Facility", ["Choose Facility"] + FACILITIES)
     month = st.selectbox("Month", ["Choose Month"] + list(cl.MONTHS))
-    year = st.number_input("Year", min_value=2015, max_value=2050, value=date.today().year)
+    year = st.number_input("Year", min_value=0, format="%d", value=date.today().year)
 
     # Fossil Fuels
     with st.expander("Fossil Fuels"):
@@ -411,3 +429,141 @@ elif menu == "Emission Analysis":
     st.write(f"**{offset:.2f} kg CO₂e**")
     st.subheader("Net Emission")
     st.success(f"**{net_emission:.2f} kg CO₂e**")
+
+    records = db.query(Emission).filter(Emission.user_id==user.id).all()
+    df_all = pd.DataFrame([{"Category": rec.category, "Emissions (kg CO₂)": rec.value} for rec in records])
+    if not df_all.empty:
+        summary = df_all.groupby("Category").sum().reset_index()
+        total = summary["Emissions (kg CO₂)"].sum()
+        st.dataframe(summary)
+        st.subheader(f"Total Carbon Footprint: {total:.2f} kg CO₂")
+        color_map = {
+            "Fossil Fuels": "#1f77b4",
+            "Fugitive": "#ff7f0e",
+            "Electricity": "#2ca02c",
+            "Water": "#d62728",
+            "Waste": "#9467bd",
+            "Travel": "#8c564b",
+        }
+        # Bar chart
+        fig_bar = px.bar(
+            summary,
+            x="Category",
+            y="Emissions (kg CO₂)",
+            color="Category",
+            color_discrete_map=color_map,
+            title="<b>Emissions by Category</b>",
+            template="plotly_white"
+        )
+        fig_bar.update_layout(xaxis=dict(tickmode="linear"), plot_bgcolor="rgba(0,0,0,0)", yaxis=dict(showgrid=False))
+        st.plotly_chart(fig_bar, use_container_width=True)
+        # Pie chart
+        fig_pie = px.pie(
+            summary,
+            values="Emissions (kg CO₂)",
+            names="Category",
+            title="Emission Contribution by Category",
+            color_discrete_sequence=px.colors.qualitative.Set3,
+            hole=0.4
+        )
+        st.subheader("🥧 Emissions Pie Chart")
+        st.plotly_chart(fig_pie, use_container_width=True)
+    else:
+        st.info("No emissions data to analyze.")
+
+elif menu == "Year and Month Analysis":
+    st.header("Year and Month Analysis")
+    # Prepare dataframe of records
+    records = db.query(Emission).filter(Emission.user_id==user.id).all()
+    df_ch = pd.DataFrame([{"Year": rec.date.year, "Month": rec.date.strftime("%B"),
+                           "Facility": rec.facility, "Category": rec.category, "Emission": rec.value} for rec in records])
+    if not df_ch.empty:
+        years_input = st.text_input("Compare Years (comma-separated)", value="")
+        selected_years = [int(y.strip()) for y in years_input.split(",") if y.strip().isdigit()]
+        if selected_years:
+            df_ch = df_ch[df_ch["Year"].isin(selected_years)]
+        # Month-wise line chart
+        monthwise = df_ch.groupby(["Year","Month"]).sum().reset_index()
+        fig1 = px.line(monthwise, x="Month", y="Emission", color="Year", markers=True, title="<b>Month-wise Emission</b>")
+        # Order months properly
+        month_order = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+        fig1.update_xaxes(categoryorder="array", categoryarray=month_order)
+        st.plotly_chart(fig1, use_container_width=True)
+        # Facility-wise bar chart
+        facwise = df_ch.groupby(["Year", "Facility", "Category"]).sum().reset_index()
+        fig2 = px.bar(facwise, x="Facility", y="Emission", color="Category", facet_col="Year",
+                      barmode="group", title="<b>Facility-wise Emission by Category</b>")
+        st.plotly_chart(fig2, use_container_width=True)
+    else:
+        st.info("No emissions data to analyze.")
+
+elif menu == "Download":
+    st.header("Download Reports")
+    # Prepare CSV of all data
+    records = db.query(Emission).filter(Emission.user_id==user.id).all()
+    df_all = pd.DataFrame([{"Year": rec.date.year, "Month": rec.date.month, "Facility": rec.facility,
+                            "Category": rec.category, "Emission": rec.value} for rec in records])
+    csv = df_all.to_csv(index=False).encode('utf-8')
+    st.download_button("📥 Download CSV", data=csv, file_name="emissions.csv", mime="text/csv")
+    # Generate charts and zip
+    if not df_all.empty:
+        # Bar and pie
+        summary = df_all.groupby("Category")["Emission"].sum().reset_index()
+        fig_bar = px.bar(summary, x="Category", y="Emission", title="Emissions by Category", color="Category", template="plotly_white")
+        fig_pie = px.pie(summary, values="Emission", names="Category", title="Emissions Distribution", hole=0.4)
+        # Monthly trend
+        df_all["MonthName"] = df_all["Month"].apply(lambda m: ["January","February","March","April","May","June","July","August","September","October","November","December"][m-1])
+        monthly = df_all.groupby(["Year","MonthName"])["Emission"].sum().reset_index()
+        fig1 = px.line(monthly, x="MonthName", y="Emission", color="Year", markers=True, title="Monthly Emission Trend")
+        fig1.update_xaxes(categoryorder="array", categoryarray=["January","February","March","April","May","June","July","August","September","October","November","December"])
+        # Create ZIP
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, 'w') as z:
+            z.writestr("emissions.csv", csv.decode('utf-8'))
+            charts = {"bar_chart.png": fig_bar, "pie_chart.png": fig_pie, "monthly_trend.png": fig1}
+            for name, fig in charts.items():
+                img_buf = pio.to_image(fig, format='png')
+                z.writestr(name, img_buf)
+        buf.seek(0)
+        st.download_button("📥 Download All Charts and Data (ZIP)", data=buf.getvalue(), file_name="reports.zip", mime="application/zip")
+    else:
+        st.info("No emissions data to download.")
+
+elif menu == "Offset Contribution":
+    st.header("Offset Contribution")
+    col1, col2 = st.columns(2)
+    with col1:
+        facility7 = st.selectbox("Facility", ["Choose Facility"] + FACILITIES)
+        year7 = st.number_input("Year", min_value=0, format="%d", value=date.today().year)
+        month7 = st.selectbox("Month", ["Choose Month", "January", "February", "March", "April", "May", "June",
+                                       "July", "August", "September", "October", "November", "December"])
+        water_area = st.number_input("Area Covered Under Water (m²)", min_value=0.0, format="%.2f")
+    with col2:
+        trees_count7 = st.number_input("Number of Trees", min_value=0, format="%d")
+        soil_area7 = st.number_input("Area Covered Under Soil (m²)", min_value=0.0, format="%.2f")
+        grass_area7 = st.number_input("Area Covered Under Grass (m²)", min_value=0.0, format="%.2f")
+        water_consum7 = st.number_input("Area Covered Under Water (m²)", min_value=0.0, format="%.2f")
+
+    tree_offset = trees_count7 * of_e_f["tree"]
+    soil_offset = soil_area7 * of_e_f["soil"]
+    grass_offset = grass_area7 * of_e_f["grass"]
+    water_offset = water_consum7 * of_e_f["water"]
+    total_offset = tree_offset + soil_offset + grass_offset + water_offset
+    # Display
+    st.subheader("Offset Contribution Summary")
+    st.markdown(f"""
+   🌳 You planted **{trees_count7} trees**, used:
+    - **{soil_area7:.2f} m^2** for tree planting
+    - **{grass_area7:.2f} m^2** covered in grass
+    - **{water_consum7:.2f} m^2** covered in water
+
+    ✅ This helped you reduce approximately:
+    - **{tree_offset:.2f} kg CO₂/year** via trees
+    - **{soil_offset:.2f} kg CO₂/year** from tree-planted land
+    - **{grass_offset:.2f} kg CO₂/year** from grassy land
+    - **{water_offset:.2f} kg CO₂/year** from water-covered area
+
+    💚 **Total Estimated Offset:** **{total_offset:.2f} kg CO₂/year**
+     """)
+
+    
