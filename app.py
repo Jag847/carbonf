@@ -9,6 +9,17 @@ import pandas as pd
 import plotly.express as px
 import plotly.io as pio
 import io, zipfile
+
+FACILITIES = [
+    "Residential Areas",
+    "Hostels",
+    "Academic Area",
+    "Health Centre",
+    "Schools",
+    "Visitor's Hostel",
+    "Servants Quarters",
+    "Shops/Bank/PO"
+]
 # 1. Initialize DB
 init_db()
 
@@ -79,18 +90,6 @@ SAFE_LIMITS = {
     "Waste": 1500,
     "Travel": 3500
 }
-FACILITIES = {
-    "Residential Areas",
-    "Hostels",
-    "Academic Area",
-    "Health Centre",
-    "Schools",
-    "Visitor's Hostel",
-    "Servants Quarters",
-    "Shops/Bank/PO"
-}
-
-
 def log_emission(category, facility, year, month, value):
     entry = Emission(
         user_id=user.id,
