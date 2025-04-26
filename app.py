@@ -2,7 +2,6 @@
 import streamlit as st
 from auth import login
 from database import init_db, Session, User, Emission
-import carbon_logic as cl
 from datetime import date
 import numpy as np
 import matplotlib.pyplot as plt
