@@ -20,6 +20,11 @@ FACILITIES = [
     "Servants Quarters",
     "Shops/Bank/PO"
 ]
+MONTHS = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December"
+]
+
 # 1. Initialize DB
 init_db()
 
@@ -151,7 +156,7 @@ if menu == "Carbon Data":
     st.header("Enter Carbon Data")
     # Common inputs
     facility = st.selectbox("Facility", ["Choose Facility"] + FACILITIES)
-    month = st.selectbox("Month", ["Choose Month"] + list(cl.MONTHS))
+    month = st.selectbox("Month", ["Choose Month"] + MONTHS)
     year = st.number_input("Year", min_value=0, format="%d", value=date.today().year)
 
     # Fossil Fuels
