@@ -44,6 +44,28 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+CATEGORY_ICONS = {
+    "Fossil Fuels": "⛽️",
+    "Fugitive": "🏭",
+    "Electricity": "⚡",
+    "Water": "💧",
+    "Waste": "🗑️",
+    "Travel": "✈️"
+}
+
+# Custom colored progress bar
+def custom_progress_bar(value, safe_limit):
+    percentage = min(value / safe_limit, 1.0) * 100  # calculate percentage
+    color = "green" if value <= safe_limit else "red"  # pick color based on safe limit
+
+    st.markdown(f"""
+        <div style="position: relative; height: 20px; background-color: #e0e0e0; border-radius: 10px; margin: 10px 0;">
+            <div style="background-color: {color}; width: {percentage}%; height: 100%; border-radius: 10px;"></div>
+            <div style="position: absolute; top: 0; left: 50%; transform: translateX(-50%); font-size: 12px; color: black;">
+                {value:.0f} kg / {safe_limit:.0f} kg
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
 # 1. Initialize DB
 init_db()
@@ -127,12 +149,15 @@ def log_emission(category, facility, year, month, value):
     db.commit()
 
 def plot_gauge(current_value, category, safe_limit):
+    icon = CATEGORY_ICONS.get(category, "🌍")  # default globe if not found
+    title_text = f"{icon} {category}"
     fig = go.Figure(go.Indicator(
-        mode = "gauge+number",
+        mode = "gauge+number+delta",
         value = current_value,
         domain = {'x': [0, 1], 'y': [0, 1]},
         title = {'text': category, 'font': {'size': 20}},
         number = {'suffix': " kg CO₂", 'font': {'size': 18}},
+        delta = {'reference': safe_limit, 'increasing': {'color': "red"}, 'decreasing': {'color': "green"}},
         gauge = {
             'axis': {'range': [0, safe_limit * 1.5], 'tickwidth': 1, 'tickcolor': "darkblue"},
             'bar': {'color': "darkblue"},
@@ -147,10 +172,15 @@ def plot_gauge(current_value, category, safe_limit):
             }
         }
     ))
-
+    
+    fig.update_traces(
+        selector=dict(type='indicator'),
+        gauge_animation_duration=1000  # 1000 ms = 1 second animation
+    )
     fig.update_layout(
         margin = {'t': 40, 'b': 0, 'l': 0, 'r': 0},
         height=300
+        transition = {'duration': 1000, 'easing': 'cubic-in-out'}
     )
     return fig
 
@@ -430,6 +460,8 @@ elif menu == "Carbon Metre":
                     st.markdown('<div class="centered">', unsafe_allow_html=True)
                     fig = plot_gauge(emission, category, SAFE_LIMITS[category])
                     st.plotly_chart(fig, use_container_width=True)
+                    custom_progress_bar(emission, SAFE_LIMITS[category])
+
                     if emission <= SAFE_LIMITS[category]:
                         st.success(f"✅ {category} emissions within limits.")
                     else:
