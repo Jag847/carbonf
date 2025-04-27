@@ -68,7 +68,7 @@ menu = st.sidebar.radio("Navigate", [
     "Carbon Data",
     "Carbon Metre",
     "Emission Analysis",
-    "Year & Month Analysis",
+    "Year and Facility Analysis",
     "Download",
     "Offset Contribution"
 ])
@@ -502,8 +502,8 @@ elif menu == "Emission Analysis":
     else:
         st.info("No emissions data to analyze.")
 
-elif menu == "Year and Month Analysis":
-    st.header("Year and Month Analysis")
+elif menu == "Year and Facility Analysis":
+    st.header("Year and Facility Analysis")
     # Prepare dataframe of records
     records = db.query(Emission).filter(Emission.user_id==user.id).all()
     df_ch = pd.DataFrame([{"Year": rec.date.year, "Month": rec.date.strftime("%B"),
