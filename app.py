@@ -388,30 +388,46 @@ if menu == "Carbon Data":
                     })
 elif menu == "Carbon Metre":
     st.header("Carbon Footprint Summary")
-    # Year/Month Filter
+
+    # Year/Month/Facility Filters
     col1, col2 = st.columns(2)
     with col1:
-        selected_year = st.selectbox("Select Year", reversed(["2024","2023","2022","2021","2020","2019","2018","2017","2016","2015"]))
+        selected_facility = st.selectbox("Facility", ["Choose Facility"] + FACILITIES)
+        selected_year = st.number_input("Year", min_value=0, format="%d", value=date.today().year)
     with col2:
-        selected_month = st.selectbox("Select Month", ["January","February","March","April","May","June",
-                                                     "July","August","September","October","November","December"])
-    # Calculate emissions
-    category_totals = {cat: 0.0 for cat in SAFE_LIMITS}
-    for entry in st.session_state.emission_log:
-        if str(entry["Year"]) == str(selected_year) and entry["Month"] == selected_month:
-            if entry["Factor"] in category_totals:
-                category_totals[entry["Factor"]] += abs(entry["Emission"])
-    # Gauge Display
-    cols = st.columns(3)
-    for idx, (category, emission) in enumerate(category_totals.items()):
-        with cols[idx % 3]:
-            gauge = plot_gauge(emission, category, SAFE_LIMITS[category])
-            st.pyplot(gauge)
-            if emission <= SAFE_LIMITS[category]:
-                st.success(f"**Good!** {category} emissions within limits")
-            else:
-                excess = emission - SAFE_LIMITS[category]
-                st.error(f"**Reduce {excess/1000:.1f} tons** of {category} emissions")
+        selected_month = st.selectbox("Select Month", ["Choose Month"] + MONTHS)
+
+    if (
+        selected_facility != "Choose Facility" and
+        selected_month != "Choose Month" and
+        selected_year > 0
+    ):
+        # Initialize totals per category
+        category_totals = {cat: 0.0 for cat in SAFE_LIMITS}
+
+        for entry in st.session_state.emission_log:
+            if (
+                str(entry["Year"]) == str(selected_year) and
+                entry["Month"] == selected_month and
+                entry["Facility"] == selected_facility
+            ):
+                if entry["Factor"] in category_totals:
+                    category_totals[entry["Factor"]] += abs(entry["Emission"])
+
+        # Display gauge meters
+        cols = st.columns(3)
+        for idx, (category, emission) in enumerate(category_totals.items()):
+            with cols[idx % 3]:
+                gauge = plot_gauge(emission, category, SAFE_LIMITS[category])
+                st.pyplot(gauge)
+                if emission <= SAFE_LIMITS[category]:
+                    st.success(f"**Good!** {category} emissions within limits.")
+                else:
+                    excess = emission - SAFE_LIMITS[category]
+                    st.error(f"**Reduce {excess/1000:.2f} tons** of {category} emissions.")
+    else:
+        st.info("Please select a facility, month, and valid year.")
+
 elif menu == "Emission Analysis":
     emissions = {
         "Fossil Fuels": float(st.session_state.get("Fossil Fuels Emission", 0.0)),
