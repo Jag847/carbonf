@@ -98,7 +98,7 @@ SAFE_LIMITS = {
 def log_emission(category, facility, year, month, value):
     entry = Emission(
         user_id=user.id,
-        date=date(int(year), list(cl.MONTHS).index(month)+1, 1),
+        date=date(int(year), MONTHS.index(month)+1, 1),
         facility=facility,
         category=category,
         value=value
