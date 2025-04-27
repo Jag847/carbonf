@@ -547,16 +547,26 @@ elif menu == "Year and Facility Analysis":
             df_ch = df_ch[df_ch["Year"].isin(selected_years)]
         # Month-wise line chart
         monthwise = df_ch.groupby(["Year","Month"]).sum().reset_index()
-        fig1 = px.line(monthwise, x="Month", y="Emission", color="Year", markers=True, title="<b>Month-wise Emission</b>")
-        # Order months properly
         month_order = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+        monthwise["Month"] = pd.Categorical(monthwise["Month"], categories=month_order, ordered=True)
+        fig1 = px.line(monthwise, x="Month", y="Emission", animation_frame="Year",  range_y=[0, monthwise["Emission"].max()*1.2], title="<b>Animated Month-wise Emission</b>", markers=True)
+        # Order months properly
         fig1.update_xaxes(categoryorder="array", categoryarray=month_order)
+        fig1.update_layout(transition = {'duration': 500}, margin={"r":10,"t":50,"l":10,"b":10})
         st.plotly_chart(fig1, use_container_width=True)
         # Facility-wise bar chart
         facwise = df_ch.groupby(["Year", "Facility", "Category"]).sum().reset_index()
         fig2 = px.bar(facwise, x="Facility", y="Emission", color="Category", facet_col="Year",
                       barmode="group", title="<b>Facility-wise Emission by Category</b>")
         st.plotly_chart(fig2, use_container_width=True)
+        
+        monthwise1 = df_ch.groupby(["Year","Month"]).sum().reset_index()
+        month_order1 = ["January","February","March","April","May","June","July","August","September","October","November","December"]
+        monthwise1["Month"] = pd.Categorical(monthwise1["Month"], categories=month_order1, ordered=True)
+        fig3 = px.line(monthwise1, x="Month", y="Emission", color="Year", markers=True, title="<b>Month-wise Emission</b>")
+        # Order months properly
+        fig3.update_xaxes(categoryorder="array", categoryarray=month_order1)
+        st.plotly_chart(fig3, use_container_width=True)   
     else:
         st.info("No emissions data to analyze.")
 
