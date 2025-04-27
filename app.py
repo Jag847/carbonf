@@ -9,6 +9,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.io as pio
 import io, zipfile
+import plotly.graph_objects as go
 
 FACILITIES = [
     "Residential Areas",
@@ -24,6 +25,25 @@ MONTHS = [
     "January","February","March","April","May","June",
     "July","August","September","October","November","December"
 ]
+
+# Centering + Card Shadow styling
+st.markdown("""
+    <style>
+    .centered {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        padding: 10px;
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);  /* Soft card shadow */
+        margin-bottom: 20px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 
 # 1. Initialize DB
 init_db()
@@ -107,43 +127,31 @@ def log_emission(category, facility, year, month, value):
     db.commit()
 
 def plot_gauge(current_value, category, safe_limit):
-    fig, ax = plt.subplots(figsize=(4, 4), subplot_kw={'projection': 'polar'})
-    ax.set_theta_offset(np.pi/2)
-    ax.set_theta_direction(-1)
-    # Dynamic scaling with 25% buffer
-    max_limit = safe_limit * 1.25
-    display_value = min(current_value, max_limit)
-    # Angle calculations
-    theta_max = 0.75 * np.pi  # 135 degrees
-    theta_min = -theta_max    # -135 degrees
-    total_range = theta_max - theta_min  # 270 degrees
-    # Calculate angles
-    safe_angle = (safe_limit / max_limit) * total_range
-    excess_angle = ((display_value - safe_limit) / max_limit) * total_range if current_value > safe_limit else 0
-    # Background arc (full range)
-    ax.barh(1, total_range, height=0.4, left=theta_min, color='#f0f0f0', alpha=0.3)
-    # Safe zone (green)
-    ax.barh(1, safe_angle, height=0.4, left=theta_min, color='#2ecc71', alpha=0.7)
-    # Excess zone (red)
-    if current_value > safe_limit:
-        ax.barh(1, excess_angle, height=0.4, left=theta_min + safe_angle, color='#e74c3c', alpha=0.7)
-    # Needle
-    needle_angle = theta_min + (display_value / max_limit) * total_range
-    ax.plot([needle_angle, needle_angle], [0, 1.2], color='#2c3e50', lw=2.5)
-    # Arc labels
-    label_values = [0, safe_limit, max_limit]
-    label_angles = [theta_min + (v / max_limit) * total_range for v in label_values]
-    ax.set_xticks(label_angles)
-    ax.set_xticklabels([f'{v/1000:.0f}k' if v < 10000 else f'{v/1000:.1f}k' for v in label_values],
-                       color='#666', fontsize=10)
-    # Center text
-    plt.text(0, 0, f'{current_value/1000:.1f}k\nCO₂', ha='center', va='center',
-             fontsize=14, color='#2c3e50', fontweight='bold')
-    # Styling
-    ax.set_yticks([])
-    ax.spines[:].set_visible(False)
-    plt.title(category, pad=20, fontsize=14, color='#2c3e50', fontweight='bold')
-    plt.tight_layout()
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = current_value,
+        domain = {'x': [0, 1], 'y': [0, 1]},
+        title = {'text': category, 'font': {'size': 20}},
+        number = {'suffix': " kg CO₂", 'font': {'size': 18}},
+        gauge = {
+            'axis': {'range': [0, safe_limit * 1.5], 'tickwidth': 1, 'tickcolor': "darkblue"},
+            'bar': {'color': "darkblue"},
+            'steps': [
+                {'range': [0, safe_limit], 'color': "lightgreen"},
+                {'range': [safe_limit, safe_limit*1.5], 'color': "salmon"},
+            ],
+            'threshold': {
+                'line': {'color': "red", 'width': 4},
+                'thickness': 0.75,
+                'value': safe_limit
+            }
+        }
+    ))
+
+    fig.update_layout(
+        margin = {'t': 40, 'b': 0, 'l': 0, 'r': 0},
+        height=300
+    )
     return fig
 
 # Initialize session state for emissions log
@@ -417,14 +425,17 @@ elif menu == "Carbon Metre":
         # Display gauge meters
         cols = st.columns(3)
         for idx, (category, emission) in enumerate(category_totals.items()):
-            with cols[idx % 3]:
-                gauge = plot_gauge(emission, category, SAFE_LIMITS[category])
-                st.pyplot(gauge)
-                if emission <= SAFE_LIMITS[category]:
-                    st.success(f"**Good!** {category} emissions within limits.")
-                else:
-                    excess = emission - SAFE_LIMITS[category]
-                    st.error(f"**Reduce {excess/1000:.2f} tons** of {category} emissions.")
+            with columns[idx % 3]:
+                with st.container():
+                    st.markdown('<div class="centered">', unsafe_allow_html=True)
+                    fig = plot_gauge(emission, category, SAFE_LIMITS[category])
+                    st.plotly_chart(fig, use_container_width=True)
+                    if emission <= SAFE_LIMITS[category]:
+                        st.success(f"✅ {category} emissions within limits.")
+                    else:
+                        excess = emission - SAFE_LIMITS[category]
+                        st.error(f"🚨 Exceeded {excess/1000:.2f} tons in {category} emissions.")
+                    st.markdown('</div>', unsafe_allow_html=True)
     else:
         st.info("Please select a facility, month, and valid year.")
 
