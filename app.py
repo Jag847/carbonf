@@ -563,7 +563,7 @@ elif menu == "Offset Contribution":
 )
         soil_area7 = st.number_input("Area Covered Under Soil (m²)", min_value=0.0, format="%.2f", key="offset_soil_area")
         grass_area7 = st.number_input("Area Covered Under Grass (m²)", min_value=0.0, format="%.2f", key="offset_grass_area"
-))
+)
         water_consum7 = st.number_input("Area Covered Under Water (m²)", min_value=0.0, format="%.2f", key="offset_water_area")
 
     tree_offset = trees_count7 * of_e_f["tree"]
